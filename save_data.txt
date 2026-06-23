@@ -1,0 +1,2 @@
+player_name=intan
+progress=0
