@@ -547,15 +547,15 @@ struct EvidencePopup {
         // Darken background — dipertahankan supaya fokus ke popup
         DrawRectangle(0, 0, sw, sh, {0, 0, 0, (unsigned char)(180 * fadeAlpha)});
 
-        // Satu gambar popup besar, melebar dari area kiri sampai area kanan
-        // (gabungan leftPanel + rightPanel jadi satu), gambar ini sudah termasuk
-        // "kotak tulisan" sendiri dari asetmu — tidak ada DrawRectangle apapun lagi.
-        Rectangle leftPanel = {50, 100, (float)sw/2 - 70, (float)sh - 200};
-        Rectangle rightPanel = {(float)sw/2, 100, (float)sw/2 - 50, (float)sh - 200};
-        Rectangle popupArea = {leftPanel.x, leftPanel.y,
-                                (rightPanel.x + rightPanel.width) - leftPanel.x,
-                                leftPanel.height};
+        const Color darkText = {51, 51, 51, 255};
+        const int TEXT_BLOCK_W = (int)(sw * 0.42f); // lebar blok teks (rata kanan)
+        const int MAX_DESC_LINES = 3; // jumlah baris deskripsi tetap (tidak berubah-ubah)
 
+        // ----- WADAH POPUP: satu panel besar, gambar + teks sama-sama di dalamnya -----
+        Rectangle popupArea = {(float)sw * 0.04f, (float)sh * 0.06f,
+                                (float)sw * 0.92f, (float)sh * 0.88f};
+
+        // ----- Gambar item: fit ke dalam wadah popup -----
         if (hasImage) {
             // Fit gambar ke dalam popupArea sambil menjaga aspect ratio (letterbox)
             float scale = std::min(popupArea.width / itemImage.width, popupArea.height / itemImage.height);
@@ -569,36 +569,47 @@ struct EvidencePopup {
                 dest, {0, 0}, 0, FadeColor(WHITE, fadeAlpha));
         }
 
-        // Deskripsi — ditumpuk di atas gambar, posisi tetap sama seperti sebelumnya
+        // ----- Judul + deskripsi: OVERLAY di pojok kanan-atas wadah (menumpuk di atas gambar) -----
+        const int TEXT_INSET_X = 20; // jarak teks dari tepi kanan wadah
+        const int TEXT_INSET_Y = 18; // jarak teks dari tepi atas wadah
+        int titleFs = 22;
+        int titleY  = (int)popupArea.y + TEXT_INSET_Y;
         DrawGameText(title,
-                     (int)(rightPanel.x + 20),
-                     (int)(rightPanel.y + 20),
-                     22, FadeColor({220, 180, 100, 255}, fadeAlpha));
+                     (int)(popupArea.x + popupArea.width) - TEXT_INSET_X - MeasureText(title.c_str(), titleFs),
+                     titleY,
+                     titleFs, FadeColor(darkText, fadeAlpha));
 
-        // Word-wrap description
-        int fy = (int)(rightPanel.y + 60);
-        std::string word, desc = description;
-        std::string line;
-        for (size_t i = 0; i <= desc.size(); i++) {
-            if (i == desc.size() || desc[i] == ' ') {
-                std::string testLine = line.empty() ? word : line + " " + word;
-                if (MeasureText(testLine.c_str(), 18) > rightPanel.width - 40) {
-                    DrawText(line.c_str(), (int)(rightPanel.x + 20), fy, 18,
-                             FadeColor(WHITE, fadeAlpha));
-                    fy += 25;
-                    line = word;
+        // Word-wrap description, tiap baris rata kanan (right-aligned)
+        int descFs = 16;
+        int fy = titleY + titleFs + 10;
+        std::vector<std::string> descLines;
+        {
+            std::string word, line, desc = description;
+            for (size_t i = 0; i <= desc.size(); i++) {
+                if (i == desc.size() || desc[i] == ' ') {
+                    std::string testLine = line.empty() ? word : line + " " + word;
+                    if (MeasureText(testLine.c_str(), descFs) > TEXT_BLOCK_W && !line.empty()) {
+                        descLines.push_back(line);
+                        line = word;
+                    } else {
+                        line = testLine;
+                    }
+                    word = "";
                 } else {
-                    line = testLine;
+                    word += desc[i];
                 }
-                word = "";
-            } else {
-                word += desc[i];
             }
+            if (!line.empty()) descLines.push_back(line);
         }
-        if (!line.empty()) DrawText(line.c_str(), (int)(rightPanel.x + 20), fy, 18,
-                                     FadeColor(WHITE, fadeAlpha));
+        int lineGap = descFs + 6;
+        for (int i = 0; i < (int)descLines.size() && i < MAX_DESC_LINES; i++) {
+            DrawText(descLines[i].c_str(),
+                     (int)(popupArea.x + popupArea.width) - TEXT_INSET_X - MeasureText(descLines[i].c_str(), descFs),
+                     fy, descFs, FadeColor(darkText, fadeAlpha));
+            fy += lineGap;
+        }
 
-        // Click to continue
+        // Click to continue — teks saja, tanpa lingkaran
         if (fadeAlpha >= 0.9f && (int)(GetTime() * 2) % 2 == 0) {
             DrawGameText("[ Klik untuk melanjutkan ]",
                          sw/2 - 120, sh - 80, 18,
@@ -783,14 +794,21 @@ private:
     // Tombol Navigasi Accusation (Chapter 4 - memilih pelaku)
     Texture2D btnConfirmSuspect;
 
+    // Tombol Back (ending screens)
+    Texture2D btnBack;
+
     // ====== ASSET CHAPTER 2 BOARD (full-screen suspect boards) ======
     Texture2D boardOlivia;
     Texture2D boardMarcus;
     Texture2D boardEthan;
+    Texture2D bgChapter2Workspace;   // background meja kerja Chapter 2 (chapter2Workspaces.png)
 
     // ====== ASSET CHAPTER 3 BOARD (reconstruction puzzle) ======
     Texture2D bgChapter3Puzzle;     // background papan cork (chapter3Board.png)
     Texture2D evCctv;                // Cctv.png
+    Texture2D evCctvOlivia;          // CctvOlivia.png
+    Texture2D evCctvMarcus;          // CctvMarkus.png
+    Texture2D evCctvEthan;           // CctvEthan.png
     // evFingerprint & evAccessLog dihapus -> reuse ivtFingerprint.png & ivtAccessLog.png (Chapter 1) langsung
     Texture2D evLaptop;              // ivtLaptop.png
     Texture2D evSafe;                // Safe.png
@@ -883,7 +901,7 @@ public:
         btnStartNormal   = LoadTexture((std::string(UI_PATH) + "Start.png").c_str());
         btnCreditsNormal = LoadTexture((std::string(UI_PATH) + "Credits.png").c_str());
         btnExitNormal    = LoadTexture((std::string(UI_PATH) + "Exit.png").c_str());
-        btnStartHover    = LoadTexture((std::string(UI_PATH) + "StartHoover.png").c_str());
+        btnStartHover    = LoadTexture((std::string(UI_PATH) + "StartHover.png").c_str());
         btnCreditsHover  = LoadTexture((std::string(UI_PATH) + "CreditsHoover.png").c_str());
         btnExitHover     = LoadTexture((std::string(UI_PATH) + "ExitHoover.png").c_str());
 
@@ -908,14 +926,21 @@ public:
         // Tombol confirm suspect (Accusation)
         btnConfirmSuspect = LoadTexture((std::string(UI_PATH) + "confirmSuspect.png").c_str());
 
+        // Tombol Back (ending screens)
+        btnBack = LoadTexture((std::string(UI_PATH) + "Back.png").c_str());
+
         // Chapter 2 suspect boards (full 16:9)
         boardOlivia = LoadTexture((std::string(ASSET_PATH) + "oliviaBoard.png").c_str());
         boardMarcus = LoadTexture((std::string(ASSET_PATH) + "marcusBoard.png").c_str());
         boardEthan  = LoadTexture((std::string(ASSET_PATH) + "ethanBoard.png").c_str());
+        bgChapter2Workspace = LoadTexture((std::string(ASSET_PATH) + "chapter2Workspaces.png").c_str());
 
         // Chapter 3 reconstruction board
         bgChapter3Puzzle = LoadTexture((std::string(ASSET_PATH) + "chapter3Board.png").c_str());
         evCctv           = LoadTexture((std::string(ASSET_PATH) + "Cctv.png").c_str());
+        evCctvOlivia     = LoadTexture((std::string(ASSET_PATH) + "CctvOlivia.png").c_str());
+        evCctvMarcus     = LoadTexture((std::string(ASSET_PATH) + "CctvMarkus.png").c_str());
+        evCctvEthan      = LoadTexture((std::string(ASSET_PATH) + "CctvEthan.png").c_str());
         // Fingerprint & AccessLog reuse texture Chapter 1 (ivtFingerprint / ivtAccessLog) -> sudah di-load di bawah
         evLaptop         = LoadTexture((std::string(ASSET_PATH) + "ivtLaptop.png").c_str());
         evSafe           = LoadTexture((std::string(ASSET_PATH) + "Safe.png").c_str());
@@ -986,15 +1011,20 @@ public:
         UnloadTexture(btnConfirm);
 
         UnloadTexture(btnConfirmSuspect);
+        UnloadTexture(btnBack);
 
         // Chapter 2 board textures
         UnloadTexture(boardOlivia);
         UnloadTexture(boardMarcus);
         UnloadTexture(boardEthan);
+        UnloadTexture(bgChapter2Workspace);
 
         // Chapter 3 board textures
         UnloadTexture(bgChapter3Puzzle);
         UnloadTexture(evCctv);
+        UnloadTexture(evCctvOlivia);
+        UnloadTexture(evCctvMarcus);
+        UnloadTexture(evCctvEthan);
         // evFingerprint & evAccessLog dihapus -> sudah di-unload via ivtFingerprint/ivtAccessLog
         UnloadTexture(evLaptop);
         UnloadTexture(evSafe);
@@ -1174,7 +1204,7 @@ public:
         };
         // Urutan kejadian sesuai referensi: CCTV -> Access Log -> Missing Bottle ->
         // Fingerprint -> Laptop -> Safe -> Victim (obat hilang & pembunuhan)
-        correctOrder = {6, 0, 1, 2, 4, 5, 3};
+        correctOrder = {6, 0, 1, 2, 3, 5, 4};
         // Shuffle awal untuk puzzle
         puzzleOrder = {3, 6, 1, 4, 0, 2, 5};
     }
@@ -1186,7 +1216,7 @@ public:
             case 1: return evMissingBottle;
             case 2: return ivtFingerprint;
             case 3: return evVictimKilled;
-            case 4: return evLaptop;
+            case 4: return ivtLaptop;
             case 5: return evSafe;
             case 6: return evCctv;
             default: return evCctv;
@@ -1198,6 +1228,15 @@ public:
         switch (idx) {
             case 0: return suspectThumbMarcus;
             case 1: return suspectThumbOlivia;
+            default: return suspectThumbEthan;
+        }
+    }
+
+    // Texture untuk kartu accusation sesuai urutan suspects[] (0=Olivia,1=Marcus,2=Ethan)
+    Texture2D getSuspectAccusationTexture(int suspectIdx) {
+        switch (suspectIdx) {
+            case 0: return suspectThumbOlivia;
+            case 1: return suspectThumbMarcus;
             default: return suspectThumbEthan;
         }
     }
@@ -1271,6 +1310,7 @@ public:
         if (scene == SCENE_PROLOG) {
             prologStep = 0;
             typewriter.setText("20 April 2024");
+            sceneTimer = 0;
         } else if (scene == SCENE_CHAPTER2_INTRO) {
             prologStep = -1; // step -1 = judul chapter fade-in dulu (seperti Ch1 & Ch3)
             typewriter.setText("");
@@ -1289,15 +1329,6 @@ public:
             puzzleSolved = false;
             selectedPuzzleSlot = -1;
             chapter3SuspectPick = 0;
-        } else if (scene == SCENE_CHAPTER3_ACCUSATION) {
-            selectedSuspect = -1;
-            // Count flags from ALL suspect notes (1/6 per checklist item)
-            flagCount = 0;
-            for (int si = 0; si < (int)suspectNotes.size(); si++) {
-                for (auto& note : suspectNotes[si]) {
-                    if (note.isChecked) flagCount++;
-                }
-            }
         }
     }
 
@@ -1331,7 +1362,6 @@ public:
             case SCENE_CHAPTER2_BOARD:   updateChapter2Board(dt); break;
             case SCENE_CHAPTER3_INTRO:   updateChapter3Intro(dt); break;
             case SCENE_CHAPTER3_PUZZLE:  updateChapter3Puzzle(); break;
-            case SCENE_CHAPTER3_ACCUSATION: updateAccusation(); break;
             case SCENE_ENDING_TRUE:
             case SCENE_ENDING_BAD:       updateEnding(); break;
             default: break;
@@ -1372,13 +1402,6 @@ public:
 
         bool clicked = IsMouseButtonReleased(MOUSE_LEFT_BUTTON);
 
-        // Auto-advance step 3 (shock image, 3 second)
-        if (prologStep == 3 && sceneTimer >= 3.0f) {
-            prologStep = 4;
-            sceneTimer = 0;
-            typewriter.setText("TIDAK MUNGKIN");
-        }
-
         if (typewriter.done && clicked) {
             typewriter.waitingClick = false;
             advancePrologStep();
@@ -1391,18 +1414,21 @@ public:
         prologStep++;
         sceneTimer = 0;
         switch (prologStep) {
-            case 1:  typewriter.setText("Pesan tidak dibalas"); break;
-            case 2:  typewriter.setText("Panggilan tidak terjawab\n\nAku sebaiknya mendatangi kamar Mrs. Iris"); break;
-            case 3:  typewriter.setText("Pintu tidak terkunci"); break;
-            // Step 3->4 is auto
-            case 4:  typewriter.setText("TIDAK MUNGKIN"); break;
-            case 5:  typewriter.setText("Mrs. Iris... apa yang terjadi"); break;
-            case 6:  typewriter.setText("...bersimbah darah. Apakah mungkin..."); break;
-            case 7:  typewriter.setText(""); break; // brankas scene
-            case 8:  // Newspaper
-                typewriter.setText("Kasus pembunuhan dilaporkan, polisi segera mengamankan lokasi kejadian.\n\nPolisi masih menyelidiki keterlibatan pihak lain dalam kasus kematian Dr. Sheryl Iris.\n\nPenelitian obat kanker yang akan diumumkan pada hari yang sama juga dilaporkan hilang.");
+            // Screen 0 sudah berisi "20 April 2024" (di-set oleh onSceneEnter)
+            case 1:
+                typewriter.setText(
+                    "Malam itu, Dr. Sheryl Iris seharusnya menghadiri konferensi pers untuk "
+                    "mengumumkan hasil penelitiannya. Namun, waktu terus berjalan dan ia tidak "
+                    "pernah muncul. Karena merasa ada sesuatu yang tidak beres, asistennya pergi "
+                    "menuju apartemen nomor 402.");
                 break;
-            case 9:  // After newspaper - go to name input
+            case 2:
+                typewriter.setText(
+                    "Pintu apartemen tidak terkunci. Tidak ada jawaban dari dalam ucap sang asisten. "
+                    "Di dalam ruangan, ia menemukan Dr. Sheryl Iris tergeletak dan tidak bergerak. "
+                    "Polisi segera dipanggil dan lokasi diamankan.");
+                break;
+            case 3:  // Setelah screen 3 ke name input
                 startFadeToScene(SCENE_NAME_INPUT);
                 break;
         }
@@ -1683,18 +1709,16 @@ public:
         sceneTimer += dt;
         typewriter.update(dt);
 
-        // Step -1: hanya judul chapter fade-in, klik untuk lanjut ke cerita+CCTV
         if (prologStep == -1) {
             if (sceneTimer > 2.0f && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
                 prologStep = 0;
                 sceneTimer = 0;
-                typewriter.setText("Rekaman CCTV ditemukan di lokasi kejadian.");
             }
             return;
         }
 
-        // Step 0: mulai typewriter setelah 1.5 detik (fade-in sudah selesai)
-        if (prologStep == 0 && sceneTimer > 1.5f && typewriter.fullText.empty()) {
+        // Step 0: foto Cctv.png + typewriter teks di bawah
+        if (prologStep == 0 && sceneTimer > 1.0f && typewriter.fullText.empty()) {
             typewriter.setText("Rekaman CCTV ditemukan di lokasi kejadian.");
         }
 
@@ -1703,7 +1727,7 @@ public:
                 prologStep++;
                 sceneTimer = 0;
                 if (prologStep == 1)
-                    typewriter.setText("Rekaman menunjukkan tiga orang yang mengunjungi Apartemen 402 pada malam pembunuhan.");
+                    typewriter.setText("Rekaman menunjukan tiga orang mengunjungi apartemen pada malam hari kejadian.");
                 else if (prologStep == 2)
                     typewriter.setText("Pengunjung teridentifikasi.");
                 else if (prologStep == 3)
@@ -1745,11 +1769,16 @@ public:
         float cbW     = 18.0f * scaleX;
 
         // Koordinat HARUS sama persis dengan drawChapter2Board (margin 20px dari tepi)
-        const int BTN_MARGIN2 = 20;
-        const int BTN_BOTTOM2 = screenH - BTN_MARGIN2;
-        Rectangle backBtn    = {(float)BTN_MARGIN2, (float)(BTN_BOTTOM2 - btnCh2Left.height), (float)btnCh2Left.width, (float)btnCh2Left.height};
-        Rectangle nextBtn    = {(float)(screenW - BTN_MARGIN2 - btnCh2Right.width), (float)(BTN_BOTTOM2 - btnCh2Right.height), (float)btnCh2Right.width, (float)btnCh2Right.height};
-        Rectangle confirmBtn = {(float)(screenW - BTN_MARGIN2 - btnConfirm.width), (float)(BTN_BOTTOM2 - btnConfirm.height), (float)btnConfirm.width, (float)btnConfirm.height};
+        const int   BTN_MARGIN2  = 20;
+        // Ukuran patokan = btnCh1Left / 6, sama persis dengan tombol Chapter 1
+        const float CH2_BTN_W    = (float)btnCh1Left.width  / 6.0f;
+        const float CH2_BTN_H    = (float)btnCh1Left.height / 6.0f;
+        const float BTN_BOTTOM2  = (float)(screenH - BTN_MARGIN2);
+        Rectangle backBtn    = {(float)BTN_MARGIN2, BTN_BOTTOM2 - CH2_BTN_H, CH2_BTN_W, CH2_BTN_H};
+        Rectangle nextBtn    = {(float)(screenW - BTN_MARGIN2) - CH2_BTN_W, BTN_BOTTOM2 - CH2_BTN_H, CH2_BTN_W, CH2_BTN_H};
+        // Confirm punya ukuran sendiri (160x52) — harus identik dengan draw, posisi center-bottom
+        const float CONF_W = 160.0f, CONF_H = 52.0f;
+        Rectangle confirmBtn = {(float)screenW/2 - CONF_W/2, BTN_BOTTOM2 - CONF_H, CONF_W, CONF_H};
 
         if (waitingForClick) {
             // Saat notifikasi "Semua tersangka sudah dikonfirmasi" tampil, klik mana saja lanjut
@@ -1801,16 +1830,29 @@ public:
     // ==========================================================================
     // CHAPTER 3 PUZZLE
     // ==========================================================================
-    void updateChapter3Puzzle() {
-        if (puzzleSolved) {
-            if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
-                startFadeToScene(SCENE_CHAPTER3_ACCUSATION);
-            }
-            return;
-        }
+    // Tombol Confirm di Chapter 3 — pakai Confirm.png, setengah ukuran tombol Start (110x32)
+    Rectangle getChapter3ConfirmRect() {
+        // Tombol Start di main menu: 220x65 → setengahnya: 110x32
+        // Dinaikkan ke ~tengah layar - 35px (dari bawah menjadi screenH/2 + 35)
+        const float cW = 110.0f, cH = 32.0f;
+        return {(float)screenW/2 - cW/2, (float)screenH/2 + 35.0f, cW, cH};
+    }
 
+    void updateChapter3Puzzle() {
         if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
             Vector2 mp = GetMousePosition();
+
+            // Tombol Confirm pilih tersangka
+            Rectangle confirmR = getChapter3ConfirmRect();
+            if (CheckCollisionPointRec(mp, confirmR)) {
+                // 0=Marcus → bad, 1=Olivia → bad, 2=Ethan → true
+                if (chapter3SuspectPick == 2) {
+                    startFadeToScene(SCENE_ENDING_TRUE);
+                } else {
+                    startFadeToScene(SCENE_ENDING_BAD);
+                }
+                return;
+            }
 
             // Tombol kecil pilih tersangka (Marcus/Olivia/Ethan) tepat di bawah slot foto tengah-atas
             for (int t = 0; t < 3; t++) {
@@ -1830,14 +1872,9 @@ public:
                     if (selectedPuzzleSlot == -1) {
                         selectedPuzzleSlot = k;
                     } else {
-                        // Swap antar index puzzleOrder (0..6)
+                        // Swap antar index puzzleOrder (0..6) — bebas, tidak ada kondisi menang
                         std::swap(puzzleOrder[selectedPuzzleSlot], puzzleOrder[k]);
                         selectedPuzzleSlot = -1;
-                        // Check win
-                        if (puzzleOrder == correctOrder) {
-                            puzzleSolved = true;
-                            typewriter.setText("Case reconstruction complete");
-                        }
                     }
                     break;
                 }
@@ -1845,13 +1882,13 @@ public:
         }
     }
 
-    // Posisi 3 tombol kecil foto tersangka, persis di bawah slot foto tengah-atas (SUSPECT_SLOT_INDEX)
+    // Posisi 3 tombol kecil foto tersangka, di bawah slot foto tengah-atas (SUSPECT_SLOT_INDEX)
     Rectangle getSuspectThumbRect(int t) {
         Rectangle suspectSlot = getPuzzleSlotRect(SUSPECT_SLOT_INDEX);
         const float thumbW = 30, thumbH = 30, gap = 6;
         float totalW = thumbW * 3 + gap * 2;
         float startX = suspectSlot.x + suspectSlot.width/2.0f - totalW/2.0f;
-        float ty = suspectSlot.y + suspectSlot.height + 8;
+        float ty = suspectSlot.y + suspectSlot.height + 55; // digeser lebih bawah, beri jarak dari foto
         float tx = startX + t * (thumbW + gap);
         return {tx, ty, thumbW, thumbH};
     }
@@ -1938,8 +1975,9 @@ public:
     // ==========================================================================
     void updateEnding() {
         if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
-            // Y = screenH-80, identik dengan drawEndingTrue() & drawEndingBad()
-            Rectangle btnRect = {(float)screenW/2 - 120, (float)screenH - 80, 240, 50};
+            // Harus identik dengan Back.png rect di drawEndingTrue/Bad
+            const float bW = 220.0f, bH = 65.0f;
+            Rectangle btnRect = {(float)screenW/2 - bW/2, (float)screenH - bH - 20.0f, bW, bH};
             if (CheckCollisionPointRec(GetMousePosition(), btnRect)) {
                 resetGameState();
                 startFadeToScene(SCENE_MAIN_MENU);
@@ -1992,7 +2030,6 @@ public:
             case SCENE_CHAPTER2_BOARD:   { drawChapter2Board(); } break;
             case SCENE_CHAPTER3_INTRO:   { drawChapter3Intro(); } break;
             case SCENE_CHAPTER3_PUZZLE:  { drawChapter3Puzzle(); } break;
-            case SCENE_CHAPTER3_ACCUSATION: { drawAccusation(); } break;
             case SCENE_ENDING_TRUE:      { drawEndingTrue(); } break;
             case SCENE_ENDING_BAD:       { drawEndingBad(); } break;
             default: break;
@@ -2032,22 +2069,16 @@ public:
         drawDecorativeBorder();
 
         // Posisi relatif terhadap screenH — proporsional di 1280×720
-        const int badgeY    = screenH / 9;
         const int titleY    = screenH * 38 / 100;
-        const int subtitleY = titleY + 62;
+        const int subtitleY = titleY + 78;
         const int btn1Y     = screenH * 58 / 100;
         const int btn2Y     = btn1Y + 90;
         const int btn3Y     = btn2Y + 90;
 
-        // Badge "CASE 402"
-        DrawRectangle(screenW/2 - 70, badgeY, 140, 140, {230, 225, 240, 255});
-        DrawRectangleLinesEx({(float)screenW/2 - 70, (float)badgeY, 140, 140}, 3, {180, 140, 80, 255});
-        DrawText("CASE", screenW/2 - 35, badgeY + 35, 28, {180, 140, 80, 255});
-        DrawText("402",  screenW/2 - 28, badgeY + 70, 36, {51, 51, 51, 255});
-
-        // Judul
+        // Judul — diperbesar selebar mungkin, tetap tidak menyentuh tombol Start
+        int titleFs = 64;
         DrawText("CASE 402",
-                 screenW/2 - MeasureText("CASE 402", 52)/2, titleY, 52, {180, 140, 60, 255});
+                 screenW/2 - MeasureText("CASE 402", titleFs)/2, titleY, titleFs, {180, 140, 60, 255});
         DrawText("A Murder Mystery",
                  screenW/2 - MeasureText("A Murder Mystery", 20)/2, subtitleY, 20, {120, 90, 50, 255});
 
@@ -2127,59 +2158,38 @@ public:
     // DRAW PROLOG
     // ==========================================================================
     void drawProlog() {
-        drawBackground();
+        // All-white background
+        ClearBackground({255, 255, 255, 255});
 
-        // Scene-specific image placeholders
-        struct SceneInfo { const char* label; Color bgColor; };
-        static SceneInfo infos[] = {
-            {"", {10,10,20,255}},                          // Step 0: date
-            {"[Asisten dengan ponsel - Chat Sheryl]", {20,15,30,255}},  // 1
-            {"[Tangan membuka pintu]", {25,20,30,255}},    // 2
-            {"[Asisten terkejut]", {40,15,15,255}},        // 3 - tense
-            {"[Sheryl terbaring di lantai]", {35,10,10,255}}, // 4
-            {"[Brankas close-up - kosong]", {20,15,35,255}}, // 5-6
-            {"[Brankas close-up - kosong]", {20,15,35,255}}, // 6
-            {"", {5,5,10,255}},                            // 7 - black
-            {"[Halaman Koran]", {220,200,150,255}},        // 8 - newspaper
-        };
+        const Color textColor = {51, 51, 51, 255}; // #333333
 
-        int idx = std::min(prologStep, 8);
-        ClearBackground(infos[idx].bgColor);
-
-        if (prologStep == 8) {
-            // Newspaper style
-            DrawRectangle(50, 50, screenW - 100, screenH - 100, {220, 200, 150, 255});
-            DrawRectangleLinesEx({50,50,(float)screenW-100,(float)screenH-100}, 4, {60,40,20,255});
-            DrawText("JAKARTA POST", 80, 70, 32, {40,20,10,255});
-            DrawLine(80, 110, screenW - 80, 110, {60,40,20,255});
-            DrawText("KASUS PEMBUNUHAN GUNCANG APARTEMEN MEWAH", 80, 125, 14, {40,20,10,255});
-            DrawLine(80, 145, screenW - 80, 145, {100,70,30,255});
-        } else if (prologStep >= 1 && prologStep <= 7) {
-            // Draw scene placeholder box
-            DrawRectangle(100, 50, screenW - 200, screenH/2, {20,20,35,255});
-            DrawRectangleLinesEx({100,50,(float)screenW-200,(float)screenH/2}, 2, {80,60,100,255});
-            if (prologStep < 8) {
-                DrawText(infos[idx].label,
-                         screenW/2 - MeasureText(infos[idx].label,18)/2,
-                         50 + screenH/4 - 10, 18, {120,100,150,255});
-            }
+        if (prologStep == 0) {
+            // Screen 1: "20 April 2024" — anchor ke tengah berdasarkan lebar teks PENUH
+            // agar posisi X tidak bergeser saat typewriter menambah huruf
+            int fs = 36;
+            const char* dateStr = "20 April 2024";
+            std::string shown = typewriter.displayed;
+            int twFull = MeasureText(dateStr, fs);     // lebar teks penuh sebagai anchor
+            int tx = screenW/2 - twFull/2;             // posisi X tetap, dari tengah
+            int ty = screenH/2 - fs/2;
+            DrawText(shown.c_str(), tx, ty, fs, textColor);
+        } else {
+            // Screen 2 & 3: paragraf narasi, typewriter centered, text wrap di tengah
+            int fs = 22;
+            int textAreaW = 900;
+            int startX = screenW/2 - textAreaW/2;
+            typewriter.draw(startX, screenH/2 - 60, fs, textColor);
         }
 
-        // Typewriter text overlay
-        if (prologStep != 7) {
-            int ty = (prologStep >= 1 && prologStep <= 7) ? screenH/2 + 40 : screenH/2 - 60;
-            typewriter.draw(100, ty, 22, prologStep == 8 ? Color{40,20,10,255} : Color{51,51,51,255});
-        }
-
-        // Click hint
-        if (typewriter.done && prologStep != 7) {
+        // Klik hint di paling bawah — selalu tampil saat typewriter selesai
+        if (typewriter.done) {
             if ((int)(GetTime() * 2) % 2 == 0) {
-                DrawText("[ Klik untuk melanjutkan ]",
-                         screenW/2 - 115, screenH - 60, 18, {120, 90, 40, 255});
+                const char* hint = "[ Klik untuk melanjutkan ]";
+                DrawText(hint,
+                         screenW/2 - MeasureText(hint, 16)/2,
+                         screenH - 50, 16, textColor);
             }
         }
-
-        drawDecorativeBorder();
     }
 
     // ==========================================================================
@@ -2211,24 +2221,21 @@ public:
     // DRAW CHAPTER 1 INTRO
     // ==========================================================================
     void drawChapter1Intro() {
-        ClearBackground({248, 247, 245, 255});
+        ClearBackground({255, 255, 255, 255});
+        const Color textColor = {51, 51, 51, 255};
 
         if (prologStep == 0) {
-            // Step 0: hanya typewriter cerita pembuka, persis di tengah layar
-            typewriter.draw(screenW/2 - 450, screenH/2 - 20, 22, {51, 51, 51, 255});
-
+            typewriter.draw(screenW/2 - 450, screenH/2 - 20, 22, textColor);
             if (typewriter.done && (int)(GetTime()*2)%2==0) {
-                DrawText("[ Klik untuk melanjutkan ]",
-                         screenW/2 - MeasureText("[ Klik untuk melanjutkan ]", 16)/2,
-                         screenH - 60, 16, {110, 85, 45, 255});
+                const char* hint = "[ Klik untuk melanjutkan ]";
+                DrawText(hint, screenW/2 - MeasureText(hint, 16)/2, screenH - 50, 16, textColor);
             }
             return;
         }
 
-        // Step 1: judul chapter, persis di tengah layar
+        // Step 1: judul chapter
         float t = std::min(1.0f, sceneTimer / 2.0f);
         Color titleColor = {(unsigned char)(51*t), (unsigned char)(51*t), (unsigned char)(51*t), 255};
-
         DrawText("CHAPTER 1", screenW/2 - MeasureText("CHAPTER 1", 48)/2, screenH/2 - 50, 48, titleColor);
         DrawText("Find The Evidence", screenW/2 - MeasureText("Find The Evidence", 28)/2, screenH/2 + 20, 28, titleColor);
     }
@@ -2349,11 +2356,7 @@ public:
             DrawRectangleLinesEx(rect, 2, Color{51, 51, 51, 200});
         }
 
-        // Pulsing indicator dot tetap ada sebagai penanda "ada bukti di sini",
-        // sedikit lebih terang saat hover supaya kelihatan responsif
-        float pulse = (sinf(GetTime() * 3) + 1) * 0.5f;
-        unsigned char alpha = hov ? 255 : (unsigned char)(180 + 60 * pulse);
-        DrawCircle(x + w - 12, y + 12, 6, {51, 51, 51, alpha});
+        // Indicator dot dihapus — hover outline sudah cukup sebagai penanda
     }
 
     void drawCloseUp() {
@@ -2528,73 +2531,86 @@ public:
     // DRAW CHAPTER 2 INTRO
     // ==========================================================================
     void drawChapter2Intro() {
-        // Background terang sama seperti Chapter 1 & 3
-        ClearBackground({248, 247, 245, 255});
+        ClearBackground({255, 255, 255, 255});
+        const Color textColor = {51, 51, 51, 255};
+        const char* clickHint = "[ Klik untuk melanjutkan ]";
 
-        // Step -1: HANYA judul chapter fade-in, persis seperti Chapter 1 & 3 (tanpa CCTV)
+        // Step -1: judul chapter fade-in
         if (prologStep == -1) {
             float t = std::min(1.0f, sceneTimer / 2.0f);
             Color titleColor = {(unsigned char)(51*t), (unsigned char)(51*t), (unsigned char)(51*t), 255};
-
             DrawText("CHAPTER 2", screenW/2 - MeasureText("CHAPTER 2", 48)/2, screenH/2 - 50, 48, titleColor);
             DrawText("The Suspect", screenW/2 - MeasureText("The Suspect", 28)/2, screenH/2 + 20, 28, titleColor);
-
-            if (sceneTimer > 2.0f && (int)(GetTime()*2)%2==0) {
-                DrawText("[ Klik untuk melanjutkan ]",
-                         screenW/2 - MeasureText("[ Klik untuk melanjutkan ]", 16)/2,
-                         screenH - 60, 16, {110, 85, 45, 255});
-            }
+            if (sceneTimer > 2.0f && (int)(GetTime()*2)%2==0)
+                DrawText(clickHint, screenW/2 - MeasureText(clickHint, 16)/2, screenH - 50, 16, textColor);
             return;
         }
 
         if (prologStep == 0) {
-            // Judul sudah ditampilkan di step -1 (opening), di sini langsung konten CCTV
-            DrawRectangle(100, 200, screenW-200, screenH-320, {228, 224, 236, 255});
-            DrawRectangleLinesEx({100, 200, (float)screenW-200, (float)screenH-320}, 2, {180, 172, 195, 255});
-            DrawText("[Rekaman CCTV - Gambar tidak jelas]",
-                     screenW/2 - MeasureText("[Rekaman CCTV - Gambar tidak jelas]", 18)/2,
-                     screenH/2 - 10, 18, {130, 122, 145, 255});
+            // Screen 1: foto Cctv.png + teks — keduanya diposisikan agar pas di tengah layar
+            // Alokasikan: foto 50% tinggi layar, teks ~1 baris (22px), sisanya padding atas/bawah
+            const int fs = 22;
+            const float textH  = (float)fs + 10.0f;   // tinggi area teks
+            const float gap    = 18.0f;                // jarak foto ke teks
+            const float totalH = (float)screenH * 0.50f + gap + textH;
+            const float startY = (screenH - totalH) / 2.0f;  // padding atas agar blok di tengah
 
-            if (sceneTimer > 1.5f) {
-                typewriter.draw(100, screenH - 100, 20, {51, 51, 51, 255});
+            float imgAreaH = (float)screenH * 0.50f;
+            Rectangle imgDest = {(float)screenW * 0.15f, startY, (float)screenW * 0.70f, imgAreaH};
+            if (evCctv.id > 0) {
+                drawTextureFit(evCctv, imgDest);
+            }
+            // Typewriter teks tepat di bawah foto
+            if (sceneTimer > 1.0f) {
+                int startX = screenW/2 - 450;
+                int textY  = (int)(startY + imgAreaH + gap);
+                typewriter.draw(startX, textY, fs, textColor);
                 if (typewriter.done && (int)(GetTime()*2)%2==0)
-                    DrawText("[ Klik untuk melanjutkan ]",
-                             screenW/2 - MeasureText("[ Klik untuk melanjutkan ]", 16)/2,
-                             screenH - 40, 16, {110, 85, 45, 255});
+                    DrawText(clickHint, screenW/2 - MeasureText(clickHint, 16)/2, screenH - 40, 16, textColor);
             }
+
         } else if (prologStep == 1) {
-            typewriter.draw((screenW - 900) / 2, screenH/2 - 20, 22, {51, 51, 51, 255});
+            // Screen 2: typewriter teks di tengah layar
+            int fs = 22;
+            int textAreaW = 900;
+            typewriter.draw(screenW/2 - textAreaW/2, screenH/2 - 30, fs, textColor);
             if (typewriter.done && (int)(GetTime()*2)%2==0)
-                DrawText("[ Klik untuk melanjutkan ]",
-                         screenW/2 - MeasureText("[ Klik untuk melanjutkan ]", 16)/2,
-                         screenH - 40, 16, {110, 85, 45, 255});
+                DrawText(clickHint, screenW/2 - MeasureText(clickHint, 16)/2, screenH - 40, 16, textColor);
+
         } else if (prologStep == 2) {
-            // Show 3 suspects silhouettes — benar-benar center terhadap layar
-            DrawText("Pengunjung Teridentifikasi", screenW/2 - MeasureText("Pengunjung Teridentifikasi",28)/2, 100, 28, {51,51,51,255});
+            // Screen 3: 3 foto CCTV berdampingan + teks — blok keseluruhan di tengah layar
+            const float photoW = 260.0f, photoH = 320.0f;
+            const float hGap   = 40.0f;   // jarak antar foto
+            const float vGap   = 24.0f;   // jarak foto ke teks
+            const int   fs     = 22;
+            const float textH  = (float)fs;
+            const float totalBlockH = photoH + vGap + textH;
+            const float photoY = (screenH - totalBlockH) / 2.0f;  // sehingga blok pas di tengah
 
-            const int cardW = 150, cardH = 250, gap = 50;
-            const int totalW = 3 * cardW + 2 * gap;
-            const int startX = screenW/2 - totalW/2;
+            const float totalW = photoW * 3 + hGap * 2;
+            const float startX = screenW / 2.0f - totalW / 2.0f;
 
+            Texture2D cctvTex[3] = { evCctvOlivia, evCctvMarcus, evCctvEthan };
             for (int i = 0; i < 3; i++) {
-                int sx = startX + i * (cardW + gap);
-                DrawRectangle(sx, 200, cardW, cardH, {218, 214, 228, 255});
-                DrawRectangleLinesEx({(float)sx, 200, (float)cardW, (float)cardH}, 2, {180,140,80,255});
-                DrawText(suspects[i].name.c_str(),
-                         sx + (cardW - MeasureText(suspects[i].name.c_str(),13))/2,
-                         458, 13, {51, 51, 51, 255});
+                float sx = startX + i * (photoW + hGap);
+                Rectangle dest = {sx, photoY, photoW, photoH};
+                if (cctvTex[i].id > 0) {
+                    drawTextureFit(cctvTex[i], dest);
+                } else {
+                    DrawRectangleRec(dest, {210, 205, 220, 255});
+                }
             }
-            if ((int)(GetTime()*2)%2==0)
-                DrawText("[ Klik untuk melanjutkan ]",
-                         screenW/2 - MeasureText("[ Klik untuk melanjutkan ]", 16)/2,
-                         screenH - 40, 16, {110, 85, 45, 255});
-        } else {
-            // prologStep == 3: typewriter instruksi, persis di tengah layar
-            typewriter.draw(screenW/2 - 450, screenH/2 - 20, 22, {51, 51, 51, 255});
+            // Teks pas di bawah foto, rata tengah
+            float textY = photoY + photoH + vGap;
+            typewriter.draw(screenW/2 - 450, (int)textY, fs, textColor);
             if (typewriter.done && (int)(GetTime()*2)%2==0)
-                DrawText("[ Klik untuk melanjutkan ]",
-                         screenW/2 - MeasureText("[ Klik untuk melanjutkan ]", 16)/2,
-                         screenH - 40, 16, {110, 85, 45, 255});
+                DrawText(clickHint, screenW/2 - MeasureText(clickHint, 16)/2, screenH - 40, 16, textColor);
+
+        } else {
+            // prologStep == 3: instruksi, typewriter di tengah
+            typewriter.draw(screenW/2 - 450, screenH/2 - 20, 22, textColor);
+            if (typewriter.done && (int)(GetTime()*2)%2==0)
+                DrawText(clickHint, screenW/2 - MeasureText(clickHint, 16)/2, screenH - 40, 16, textColor);
         }
     }
 
@@ -2658,44 +2674,48 @@ public:
             bool hov = CheckCollisionPointRec(mp, clickArea);
             if (hov) DrawRectangleLinesEx(clickArea, 1, {255, 230, 100, 80});
 
-            // X mark bila sudah dicentang
+            // X mark bila sudah dicentang — dikecilkan (0.35x cb), naik lebih, geser kanan
             if (notes[i].isChecked) {
-                // Gambar X dengan dua garis diagonal, tebal dan jelas
-                int x1 = (int)cb.x, y1 = (int)cb.y;
-                int x2 = (int)(cb.x + cb.width), y2 = (int)(cb.y + cb.height);
-                DrawLineEx({(float)x1, (float)y1}, {(float)x2, (float)y2}, 3.0f, {220, 50, 50, 230});
-                DrawLineEx({(float)x2, (float)y1}, {(float)x1, (float)y2}, 3.0f, {220, 50, 50, 230});
+                float xHalfW = cb.width  * 0.35f;
+                float xHalfH = cb.height * 0.35f;
+                float xCX    = cb.x + cb.width  * 1.0f + 8.0f; // geser kanan dari kotak
+                float xCY    = cb.y + cb.height * 0.1f;         // naik lebih
+                float x1 = xCX - xHalfW/2, y1 = xCY - xHalfH/2;
+                float x2 = xCX + xHalfW/2, y2 = xCY + xHalfH/2;
+                DrawLineEx({x1, y1}, {x2, y2}, 2.0f, {220, 50, 50, 230});
+                DrawLineEx({x2, y1}, {x1, y2}, 2.0f, {220, 50, 50, 230});
             }
         }
 
-        // Navigation buttons — kiri bawah & kanan bawah, mepet samping dengan margin 20px
+        // Navigation buttons — kiri bawah & kanan bawah, ukuran patokan btnCh1 / 6, margin 20px
         const int BTN_MARGIN = 20;
-        const int BTN_BOTTOM = screenH - BTN_MARGIN;
+        const float CH2_W = (float)btnCh1Left.width  / 6.0f;
+        const float CH2_H = (float)btnCh1Left.height / 6.0f;
+        const float CH2_BY = (float)(screenH - BTN_MARGIN) - CH2_H;
         Vector2 mpNav = GetMousePosition();
 
         // Tombol KIRI (back) — pojok kiri bawah
         if (currentSuspectIdx > 0) {
-            int bx = BTN_MARGIN;
-            int by = BTN_BOTTOM - btnCh2Left.height;
-            Rectangle r = {(float)bx, (float)by, (float)btnCh2Left.width, (float)btnCh2Left.height};
+            Rectangle r = {(float)BTN_MARGIN, CH2_BY, CH2_W, CH2_H};
             bool hov = CheckCollisionPointRec(mpNav, r);
-            DrawTexture(hov ? btnCh2LeftHover : btnCh2Left, bx, by, WHITE);
+            Texture2D tex = hov ? btnCh2LeftHover : btnCh2Left;
+            DrawTexturePro(tex, {0,0,(float)tex.width,(float)tex.height}, r, {0,0}, 0, WHITE);
         }
 
         // Tombol KANAN (next) atau CONFIRM — pojok kanan bawah
         if (currentSuspectIdx < 2) {
-            int bx = screenW - BTN_MARGIN - btnCh2Right.width;
-            int by = BTN_BOTTOM - btnCh2Right.height;
-            Rectangle r = {(float)bx, (float)by, (float)btnCh2Right.width, (float)btnCh2Right.height};
+            Rectangle r = {(float)(screenW - BTN_MARGIN) - CH2_W, CH2_BY, CH2_W, CH2_H};
             bool hov = CheckCollisionPointRec(mpNav, r);
-            DrawTexture(hov ? btnCh2RightHover : btnCh2Right, bx, by, WHITE);
+            Texture2D tex = hov ? btnCh2RightHover : btnCh2Right;
+            DrawTexturePro(tex, {0,0,(float)tex.width,(float)tex.height}, r, {0,0}, 0, WHITE);
         } else {
-            // Suspect terakhir: Confirm di pojok kanan bawah
-            int bx = screenW - BTN_MARGIN - btnConfirm.width;
-            int by = BTN_BOTTOM - btnConfirm.height;
-            Rectangle r = {(float)bx, (float)by, (float)btnConfirm.width, (float)btnConfirm.height};
+            // Suspect terakhir: Confirm di tengah bawah — lebih kecil dari Start (220x65), pakai 160x52
+            const float CONF_W = 160.0f, CONF_H = 52.0f;
+            Rectangle r = {(float)screenW/2 - CONF_W/2,
+                            (float)(screenH - BTN_MARGIN) - CONF_H,
+                            CONF_W, CONF_H};
             bool hov = CheckCollisionPointRec(mpNav, r);
-            DrawTexture(btnConfirm, bx, by, hov ? Color{255,255,255,220} : WHITE);
+            DrawTexturePro(btnConfirm, {0,0,(float)btnConfirm.width,(float)btnConfirm.height}, r, {0,0}, 0, hov ? Color{255,255,255,220} : WHITE);
         }
 
         if (waitingForClick) {
@@ -2706,22 +2726,28 @@ public:
 
     // Tampilan "meja kerja" sebelum zoom ke board investigasi (mirip pola Chapter 1)
     void drawChapter2Desk() {
+        // Background full-screen meja kerja (chapter2Workspaces.png)
+        if (bgChapter2Workspace.id > 0) {
+            Rectangle bgDest = {0, 0, (float)screenW, (float)screenH};
+            DrawTexturePro(bgChapter2Workspace,
+                {0, 0, (float)bgChapter2Workspace.width, (float)bgChapter2Workspace.height},
+                bgDest, {0, 0}, 0, WHITE);
+        }
+
         DrawText("MEJA KERJA DETEKTIF", screenW/2 - MeasureText("MEJA KERJA DETEKTIF", 28)/2,
                  60, 28, {51, 51, 51, 255});
 
         Rectangle deskZoomRect = {(float)screenW/2 - 150, (float)screenH/2 - 100, 300, 200};
         bool hov = CheckCollisionPointRec(GetMousePosition(), deskZoomRect);
+        // Box dan teks transparan — hanya pulse indicator yang tetap terlihat
         DrawRectangle(deskZoomRect.x, deskZoomRect.y, deskZoomRect.width, deskZoomRect.height,
-                      hov ? Color{222, 212, 235, 255} : Color{210, 205, 225, 255});
-        DrawRectangleLinesEx(deskZoomRect, 3, {180, 140, 80, 255});
+                      {0, 0, 0, 0});
+        DrawRectangleLinesEx(deskZoomRect, 3, {0, 0, 0, 0});
         DrawText("[ Berkas Data Pengunjung ]",
                  screenW/2 - MeasureText("[ Berkas Data Pengunjung ]", 16)/2,
-                 (int)(deskZoomRect.y + deskZoomRect.height/2 - 8), 16, {90, 65, 30, 255});
+                 (int)(deskZoomRect.y + deskZoomRect.height/2 - 8), 16, {0, 0, 0, 0});
 
-        // Pulse indicator biar terlihat interaktif
-        float pulse = (sinf(GetTime() * 3) + 1) * 0.5f;
-        DrawCircle((int)(deskZoomRect.x + deskZoomRect.width - 16), (int)(deskZoomRect.y + 16), 6,
-                   {(unsigned char)(180*pulse), 220, 80, 255});
+        // Indicator circle dihapus
 
         DrawText("[ Klik untuk memeriksa data pengunjung ]",
                  screenW/2 - MeasureText("[ Klik untuk memeriksa data pengunjung ]", 16)/2,
@@ -2758,19 +2784,28 @@ public:
     // DRAW CHAPTER 3 INTRO
     // ==========================================================================
     void drawChapter3Intro() {
-        ClearBackground({248, 247, 245, 255});
+        ClearBackground({255, 255, 255, 255});
+        const Color textColor = {51, 51, 51, 255};
 
         float t = std::min(1.0f, sceneTimer / 2.0f);
         Color tc = {(unsigned char)(51*t), (unsigned char)(51*t), (unsigned char)(51*t), 255};
-        DrawText("CHAPTER 3", screenW/2 - MeasureText("CHAPTER 3", 48)/2, screenH/2 - 60, 48, tc);
-        DrawText("Reconstruction", screenW/2 - MeasureText("Reconstruction", 28)/2, screenH/2 + 10, 28, tc);
+        DrawText("CHAPTER 3", screenW/2 - MeasureText("CHAPTER 3", 48)/2, screenH/2 - 80, 48, tc);
+        DrawText("Reconstruction", screenW/2 - MeasureText("Reconstruction", 28)/2, screenH/2 - 20, 28, tc);
+
+        // Sub-teks setelah judul muncul
+        if (sceneTimer > 1.5f) {
+            float subT = std::min(1.0f, (sceneTimer - 1.5f) / 1.0f);
+            Color subC = {51, 51, 51, (unsigned char)(255 * subT)};
+            const char* sub = "Review kejadian dan ungkap siapa pelaku";
+            DrawText(sub, screenW/2 - MeasureText(sub, 20)/2, screenH/2 + 30, 20, subC);
+        }
 
         if (sceneTimer > 2.0f) {
-            typewriter.draw((screenW - 900) / 2, screenH - 80, 20, {51, 51, 51, 255});
-            if (typewriter.done && (int)(GetTime()*2)%2==0)
-                DrawText("[ Klik untuk melanjutkan ]",
-                         screenW/2 - MeasureText("[ Klik untuk melanjutkan ]", 16)/2,
-                         screenH - 40, 16, {110, 85, 45, 255});
+            typewriter.draw((screenW - 900) / 2, screenH - 80, 20, textColor);
+            if (typewriter.done && (int)(GetTime()*2)%2==0) {
+                const char* hint = "[ Klik untuk melanjutkan ]";
+                DrawText(hint, screenW/2 - MeasureText(hint, 16)/2, screenH - 40, 16, textColor);
+            }
         }
     }
 
@@ -2857,20 +2892,43 @@ public:
             Rectangle thumbRect = getSuspectThumbRect(t);
             bool isPicked = (chapter3SuspectPick == t);
             drawTextureFit(getSuspectThumbTexture(t), thumbRect);
-            DrawRectangleLinesEx(thumbRect, isPicked ? 3 : 1, isPicked ? Color{220, 180, 60, 0} : Color{40, 35, 30, 0});
-            if (CheckCollisionPointRec(GetMousePosition(), thumbRect)) {
-                DrawRectangleLinesEx({thumbRect.x-1, thumbRect.y-1, thumbRect.width+2, thumbRect.height+2}, 2, {255, 220, 120, 0});
+            // Border highlight untuk yang dipilih (tetap visible supaya player tahu mana yang aktif)
+            if (isPicked) {
+                DrawRectangleLinesEx({thumbRect.x-2, thumbRect.y-2, thumbRect.width+4, thumbRect.height+4}, 3, {220, 180, 60, 220});
+            }
+            if (CheckCollisionPointRec(GetMousePosition(), thumbRect) && !isPicked) {
+                DrawRectangleLinesEx({thumbRect.x-1, thumbRect.y-1, thumbRect.width+2, thumbRect.height+2}, 2, {255, 220, 120, 160});
             }
         }
 
-        if (puzzleSolved) {
-            DrawRectangle(0, screenH/2 - 60, screenW, 120, {240, 238, 245, 235});
-            DrawText("Case Reconstruction Complete!", screenW/2 - MeasureText("Case Reconstruction Complete!", 32)/2,
-                     screenH/2 - 20, 32, {51, 51, 51, 255});
-            if ((int)(GetTime()*2)%2==0)
-                DrawText("[ Klik untuk melanjutkan ]",
-                         screenW/2 - MeasureText("[ Klik untuk melanjutkan ]", 18)/2,
-                         screenH/2 + 30, 18, {110, 85, 45, 255});
+        // ---- Flags di bawah ketiga tombol pilih suspect ----
+        {
+            // Hitung flags dari suspectNotes untuk suspect yang sedang dipilih
+            int pickedFlags = 0;
+            if (chapter3SuspectPick < (int)suspectNotes.size()) {
+                for (auto& note : suspectNotes[chapter3SuspectPick]) {
+                    if (note.isChecked) pickedFlags++;
+                }
+            }
+            // Posisi: ambil thumbRect paling kanan sebagai referensi bawah
+            Rectangle lastThumb = getSuspectThumbRect(2);
+            float flagY = lastThumb.y + lastThumb.height + 12;
+            const char* flagTxt = TextFormat("Flags: %d/5", pickedFlags);
+            Color flagColor = pickedFlags >= 3 ? Color{200, 70, 55, 255} : Color{80, 145, 85, 255};
+            // Tengahkan di bawah area 3 tombol
+            Rectangle firstThumb = getSuspectThumbRect(0);
+            float flagAreaCenterX = firstThumb.x + (lastThumb.x + lastThumb.width - firstThumb.x) / 2.0f;
+            DrawText(flagTxt, (int)(flagAreaCenterX - MeasureText(flagTxt, 12)/2), (int)flagY, 12, flagColor);
+        }
+
+        // ---- Tombol Confirm (Confirm.png, setengah ukuran tombol Start) ----
+        {
+            Rectangle confirmR = getChapter3ConfirmRect();
+            bool hov = CheckCollisionPointRec(GetMousePosition(), confirmR);
+            DrawTexturePro(btnConfirm,
+                {0, 0, (float)btnConfirm.width, (float)btnConfirm.height},
+                confirmR, {0, 0}, 0,
+                hov ? Color{255, 255, 255, 200} : WHITE);
         }
     }
 
@@ -2902,26 +2960,27 @@ public:
                 DrawRectangleLinesEx({cardX-3, cardY-3, cardW+6, cardH+6}, 2, {180, 140, 60, 90});
             }
 
-            // Photo
-            DrawRectangle(cardX + 20, cardY + 15, cardW - 40, 150, {210, 206, 222, 255});
-            DrawRectangleLinesEx({cardX+20, cardY+15, cardW-40, 150}, 1, {178,170,192,255});
-            DrawText("[PHOTO]", cardX + 45, cardY + 85, 14, {140, 132, 155, 255});
+            // Photo — digeser +30px ke bawah, pakai foto asli
+            Rectangle photoRect = {cardX + 15, cardY + 45, cardW - 30, 155};
+            DrawRectangleRec(photoRect, {210, 206, 222, 255});
+            drawTextureFit(getSuspectAccusationTexture(i), photoRect);
+            DrawRectangleLinesEx(photoRect, 1, border);
 
-            // Name
+            // Name — digeser +30px ke bawah
             DrawText(suspects[i].name.c_str(),
                      cardX + (cardW - MeasureText(suspects[i].name.c_str(), 14))/2,
-                     cardY + 175, 14, {51, 51, 51, 255});
+                     cardY + 210, 14, {51, 51, 51, 255});
 
             DrawText(suspects[i].job.c_str(),
                      cardX + (cardW - MeasureText(suspects[i].job.c_str(), 12))/2,
-                     cardY + 195, 12, {95, 85, 75, 255});
+                     cardY + 230, 12, {95, 85, 75, 255});
 
             // Flags from investigation notes
             int flags = 0;
             for (auto& note : suspectNotes[i]) if (note.isChecked) flags++;
             DrawText(TextFormat("Flags: %d/5", flags),
                      cardX + (cardW - MeasureText(TextFormat("Flags: %d/5", flags), 13))/2,
-                     cardY + 220, 13, flags >= 3 ? Color{200, 70, 55, 255} : Color{80, 145, 85, 255});
+                     cardY + 255, 13, flags >= 3 ? Color{200, 70, 55, 255} : Color{80, 145, 85, 255});
 
             // Hover indicator
             if (CheckCollisionPointRec(GetMousePosition(), {cardX, cardY, cardW, cardH}) &&
@@ -2948,71 +3007,100 @@ public:
     // DRAW ENDINGS
     // ==========================================================================
     void drawEndingTrue() {
-        ClearBackground({5, 20, 5, 255});
-        for (int y = 0; y < screenH; y += 4) DrawLine(0, y, screenW, y, {0,0,0,20});
+        ClearBackground({255, 255, 255, 255});
+        const Color darkText = {51, 51, 51, 255};
 
-        DrawText("CASE CLOSED", screenW/2 - MeasureText("CASE CLOSED", 56)/2, 80, 56, {80, 220, 80, 255});
-        DrawLine(100, 150, screenW - 100, 150, {80, 180, 80, 255});
+        // Label "Ending 1/2" — di atas, tepat tengah horizontal
+        const char* label = "Ending 1/2";
+        const int labelFs = 24;
+        DrawText(label, screenW/2 - MeasureText(label, labelFs)/2, screenH/4, labelFs, darkText);
 
-        DrawText("Detektif berhasil mengidentifikasi pelaku.",
-                 screenW/2 - MeasureText("Detektif berhasil mengidentifikasi pelaku.", 22)/2, 180, 22, WHITE);
-        DrawText(TextFormat("Selamat, Detektif %s!", playerName.c_str()),
-                 screenW/2 - MeasureText(TextFormat("Selamat, Detektif %s!", playerName.c_str()), 26)/2,
-                 220, 26, {180, 220, 180, 255});
+        // Pesan utama — bukan typewriter, langsung draw, word-wrap, tiap baris dicenter
+        std::string msg = std::string("Selamat detektif ") + playerName +
+                          " kamu telah berhasil menemukan pelaku pembunuhan dan keadilan dapat ditegakan";
+        const int fs = 28;
+        const int maxW = 760;
+        {
+            std::vector<std::string> lines;
+            std::string line, word;
+            for (size_t i = 0; i <= msg.size(); i++) {
+                if (i == msg.size() || msg[i] == ' ') {
+                    std::string test = line.empty() ? word : line + " " + word;
+                    if (MeasureText(test.c_str(), fs) > maxW && !line.empty()) {
+                        lines.push_back(line);
+                        line = word;
+                    } else { line = test; }
+                    word = "";
+                } else { word += msg[i]; }
+            }
+            if (!line.empty()) lines.push_back(line);
+            int totalH = (int)lines.size() * (fs + 10);
+            int ly = screenH/2 - totalH/2;
+            for (auto& l : lines) {
+                DrawText(l.c_str(), screenW/2 - MeasureText(l.c_str(), fs)/2, ly, fs, darkText);
+                ly += fs + 10;
+            }
+        }
 
-        DrawRectangle(screenW/2 - 250, 270, 500, 200, {10, 30, 10, 255});
-        DrawRectangleLinesEx({(float)screenW/2 - 250, 270, 500, 200}, 2, {80, 180, 80, 255});
-        DrawText("VERDICT", screenW/2 - MeasureText("VERDICT", 24)/2, 285, 24, {80, 220, 80, 255});
-        DrawText("Ethan Cross", screenW/2 - MeasureText("Ethan Cross", 32)/2, 320, 32, {220, 80, 80, 255});
-        DrawText("BERSALAH ATAS PEMBUNUHAN DR. SHERYL IRIS",
-                 screenW/2 - MeasureText("BERSALAH ATAS PEMBUNUHAN DR. SHERYL IRIS", 16)/2,
-                 365, 16, WHITE);
-        DrawText("DAN PENCURIAN PROTOTYPE OBAT KANKER",
-                 screenW/2 - MeasureText("DAN PENCURIAN PROTOTYPE OBAT KANKER", 16)/2,
-                 388, 16, WHITE);
-        DrawText("Divonis 20 tahun penjara.",
-                 screenW/2 - MeasureText("Divonis 20 tahun penjara.", 18)/2, 420, 18, {180, 180, 180, 255});
-
-        // Back button
-        Rectangle btn = {(float)screenW/2 - 120, (float)screenH - 80, 240, 50};
-        bool hov = CheckCollisionPointRec(GetMousePosition(), btn);
-        DrawRectangleRec(btn, hov ? Color{40,80,40,255} : Color{20,40,20,255});
-        DrawRectangleLinesEx(btn, 2, {80, 180, 80, 255});
-        DrawText("BACK TO MAIN MENU", screenW/2 - MeasureText("BACK TO MAIN MENU", 18)/2, screenH - 65, 18, WHITE);
+        // Back button — tengah bawah, seukuran Start (220x65)
+        {
+            const float bW = 220.0f, bH = 65.0f;
+            Rectangle btn = {(float)screenW/2 - bW/2, (float)screenH - bH - 20.0f, bW, bH};
+            bool hov = CheckCollisionPointRec(GetMousePosition(), btn);
+            DrawTexturePro(btnBack,
+                {0,0,(float)btnBack.width,(float)btnBack.height},
+                btn, {0,0}, 0,
+                hov ? Color{255,255,255,220} : WHITE);
+        }
 
         drawDecorativeBorder();
     }
 
     void drawEndingBad() {
-        ClearBackground({20, 5, 5, 255});
-        for (int y = 0; y < screenH; y += 4) DrawLine(0, y, screenW, y, {0,0,0,20});
+        ClearBackground({255, 255, 255, 255});
+        const Color darkText = {51, 51, 51, 255};
 
-        DrawText("CASE FAILED", screenW/2 - MeasureText("CASE FAILED", 56)/2, 80, 56, {220, 60, 60, 255});
-        DrawLine(100, 150, screenW - 100, 150, {180, 60, 60, 255});
+        // Label "Ending 2/2" — di atas, tepat tengah horizontal
+        const char* label = "Ending 2/2";
+        const int labelFs = 24;
+        DrawText(label, screenW/2 - MeasureText(label, labelFs)/2, screenH/4, labelFs, darkText);
 
-        DrawText("Detektif gagal mengidentifikasi pelaku.",
-                 screenW/2 - MeasureText("Detektif gagal mengidentifikasi pelaku.", 22)/2, 180, 22, WHITE);
-        DrawText(TextFormat("Kasus ini tetap terbuka, Detektif %s.", playerName.c_str()),
-                 screenW/2 - MeasureText(TextFormat("Kasus ini tetap terbuka, Detektif %s.", playerName.c_str()), 22)/2,
-                 215, 22, {220, 160, 160, 255});
+        // Pesan utama — bukan typewriter, langsung draw, word-wrap, tiap baris dicenter
+        std::string msg = "Case Failed, kamu telah gagal menemukan pelaku serta memasukkan orang tak bersalah ke penjara";
+        const int fs = 28;
+        const int maxW = 760;
+        {
+            std::vector<std::string> lines;
+            std::string line, word;
+            for (size_t i = 0; i <= msg.size(); i++) {
+                if (i == msg.size() || msg[i] == ' ') {
+                    std::string test = line.empty() ? word : line + " " + word;
+                    if (MeasureText(test.c_str(), fs) > maxW && !line.empty()) {
+                        lines.push_back(line);
+                        line = word;
+                    } else { line = test; }
+                    word = "";
+                } else { word += msg[i]; }
+            }
+            if (!line.empty()) lines.push_back(line);
+            int totalH = (int)lines.size() * (fs + 10);
+            int ly = screenH/2 - totalH/2;
+            for (auto& l : lines) {
+                DrawText(l.c_str(), screenW/2 - MeasureText(l.c_str(), fs)/2, ly, fs, darkText);
+                ly += fs + 10;
+            }
+        }
 
-        DrawRectangle(screenW/2 - 260, 265, 520, 180, {30, 10, 10, 255});
-        DrawRectangleLinesEx({(float)screenW/2 - 260, 265, 520, 180}, 2, {180, 60, 60, 255});
-        DrawText("Pembunuh yang sesungguhnya masih bebas berkeliaran.",
-                 screenW/2 - MeasureText("Pembunuh yang sesungguhnya masih bebas berkeliaran.", 16)/2,
-                 285, 16, WHITE);
-        DrawText("Kebenaran terkubur bersama rahasia Apartemen 402.",
-                 screenW/2 - MeasureText("Kebenaran terkubur bersama rahasia Apartemen 402.", 16)/2,
-                 315, 16, {200, 180, 180, 255});
-        DrawText("Apakah keadilan akan pernah ditegakkan?",
-                 screenW/2 - MeasureText("Apakah keadilan akan pernah ditegakkan?", 18)/2,
-                 360, 18, {180, 140, 140, 255});
-
-        Rectangle btn = {(float)screenW/2 - 120, (float)screenH - 80, 240, 50};
-        bool hov = CheckCollisionPointRec(GetMousePosition(), btn);
-        DrawRectangleRec(btn, hov ? Color{80,20,20,255} : Color{40,10,10,255});
-        DrawRectangleLinesEx(btn, 2, {180, 60, 60, 255});
-        DrawText("BACK TO MAIN MENU", screenW/2 - MeasureText("BACK TO MAIN MENU", 18)/2, screenH - 65, 18, WHITE);
+        // Back button — tengah bawah, seukuran Start (220x65)
+        {
+            const float bW = 220.0f, bH = 65.0f;
+            Rectangle btn = {(float)screenW/2 - bW/2, (float)screenH - bH - 20.0f, bW, bH};
+            bool hov = CheckCollisionPointRec(GetMousePosition(), btn);
+            DrawTexturePro(btnBack,
+                {0,0,(float)btnBack.width,(float)btnBack.height},
+                btn, {0,0}, 0,
+                hov ? Color{255,255,255,220} : WHITE);
+        }
 
         drawDecorativeBorder();
     }
@@ -3021,26 +3109,50 @@ public:
     // DRAW PAUSE MENU
     // ==========================================================================
     void drawPause() {
-        const int boxY   = screenH / 2 - uiPauseBox.height / 2;
-        const int boxX   = screenW / 2 - uiPauseBox.width / 2;
-        const int titleY = boxY + 20;
-        const int btn1Y  = boxY + 100;
-        const int btn2Y  = btn1Y + 65;
+        // Tombol seukuran Start: 220x65, jarak antar tombol 20px, padding box 30px sisi + 30px atas + 20px bawah
+        const float btnW    = 220.0f;
+        const float btnH    = 65.0f;
+        const float btnGap  = 20.0f;
+        const float padX    = 40.0f;
+        const float padTop  = 70.0f;  // ruang untuk judul PAUSED
+        const float padBot  = 24.0f;
+
+        const float boxW    = btnW + padX * 2;
+        const float boxH    = padTop + btnH + btnGap + btnH + padBot;
+        const float boxX    = screenW / 2.0f - boxW / 2.0f;
+        const float boxY    = screenH / 2.0f - boxH / 2.0f;
+
+        const float btn1Y   = boxY + padTop;
+        const float btn2Y   = btn1Y + btnH + btnGap;
+        const float btnX    = screenW / 2.0f - btnW / 2.0f;
 
         DrawRectangle(0, 0, screenW, screenH, {200, 200, 210, 160});
-        DrawTexture(uiPauseBox, boxX, boxY, WHITE);
-        DrawText("PAUSED", screenW/2 - MeasureText("PAUSED", 36)/2, titleY, 36, {140, 100, 40, 255});
 
-        auto drawBtn = [&](Texture2D tex, int y) -> bool {
-            int x = screenW/2 - tex.width/2;
-            Rectangle r = {(float)x, (float)y, (float)tex.width, (float)tex.height};
-            bool hov = CheckCollisionPointRec(GetMousePosition(), r);
-            DrawTexture(tex, x, y, hov ? Color{255,255,255,220} : WHITE);
+        // Box background — gambar PauseBox.png fit ke box, atau fallback rect
+        if (uiPauseBox.id > 0) {
+            DrawTexturePro(uiPauseBox,
+                {0, 0, (float)uiPauseBox.width, (float)uiPauseBox.height},
+                {boxX, boxY, boxW, boxH}, {0, 0}, 0, WHITE);
+        } else {
+            DrawRectangle((int)boxX, (int)boxY, (int)boxW, (int)boxH, {235, 230, 245, 255});
+            DrawRectangleLinesEx({boxX, boxY, boxW, boxH}, 2, {180, 140, 80, 255});
+        }
+
+        DrawText("PAUSED", screenW/2 - MeasureText("PAUSED", 30)/2,
+                 (int)(boxY + 22), 30, {140, 100, 40, 255});
+
+        auto drawBtnScaled = [&](Texture2D tex, float y) -> bool {
+            Rectangle dest = {btnX, y, btnW, btnH};
+            bool hov = CheckCollisionPointRec(GetMousePosition(), dest);
+            DrawTexturePro(tex,
+                {0, 0, (float)tex.width, (float)tex.height},
+                dest, {0, 0}, 0,
+                hov ? Color{255,255,255,220} : WHITE);
             return hov && IsMouseButtonReleased(MOUSE_LEFT_BUTTON);
         };
 
-        if (drawBtn(btnContinue, btn1Y)) paused = false;
-        if (drawBtn(btnMainMenu, btn2Y)) {
+        if (drawBtnScaled(btnContinue, btn1Y)) paused = false;
+        if (drawBtnScaled(btnMainMenu, btn2Y)) {
             paused = false;
             startFadeToScene(SCENE_MAIN_MENU);
         }
