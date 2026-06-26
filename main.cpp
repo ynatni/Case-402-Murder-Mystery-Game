@@ -939,7 +939,7 @@ public:
         bgChapter3Puzzle = LoadTexture((std::string(ASSET_PATH) + "chapter3Board.png").c_str());
         evCctv           = LoadTexture((std::string(ASSET_PATH) + "Cctv.png").c_str());
         evCctvOlivia     = LoadTexture((std::string(ASSET_PATH) + "CctvOlivia.png").c_str());
-        evCctvMarcus     = LoadTexture((std::string(ASSET_PATH) + "CctvMarkus.png").c_str());
+        evCctvMarcus     = LoadTexture((std::string(ASSET_PATH) + "CctvMarcus.png").c_str());
         evCctvEthan      = LoadTexture((std::string(ASSET_PATH) + "CctvEthan.png").c_str());
         // Fingerprint & AccessLog reuse texture Chapter 1 (ivtFingerprint / ivtAccessLog) -> sudah di-load di bawah
         evLaptop         = LoadTexture((std::string(ASSET_PATH) + "ivtLaptop.png").c_str());
@@ -2127,12 +2127,16 @@ public:
             "CASE 402 - A Murder Mystery",
             "",
             "Developed by:",
-            "  Programming  :  [Nama Programmer]",
-            "  Art & Design :  [Nama Artist / DKV]",
+            "  Programming  :  Intan Yusriyaturizki",
+            "  Art & Design :  Adinda Nurul A.",
+            "  Story        :  Adinda Nurul Atthiyah & Intan Yusriyaturizki",
+            "  Pseudocode   :  Farika Aulya Putri",
+            "  Flowchart    :  Nur Izzati Zafira",
+            "  Implementasi :  Byan Azriel"
             "",
             "Built with raylib (www.raylib.com)",
             "",
-            "Academic Project - 2024",
+            "Final Project exam - 2026",
         };
         int lineCount = (int)(sizeof(lines) / sizeof(lines[0]));
         int startY = 150;

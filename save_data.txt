@@ -1,2 +1,2 @@
-player_name=in
+player_name=intan
 progress=0
