@@ -569,19 +569,15 @@ struct EvidencePopup {
                 dest, {0, 0}, 0, FadeColor(WHITE, fadeAlpha));
         }
 
-        // ----- Judul + deskripsi: OVERLAY di pojok kanan-atas wadah (menumpuk di atas gambar) -----
+        // ----- Judul + deskripsi: OVERLAY di kanan-TENGAH wadah (menumpuk di atas gambar) -----
         const int TEXT_INSET_X = 20; // jarak teks dari tepi kanan wadah
-        const int TEXT_INSET_Y = 18; // jarak teks dari tepi atas wadah
         int titleFs = 22;
-        int titleY  = (int)popupArea.y + TEXT_INSET_Y;
-        DrawGameText(title,
-                     (int)(popupArea.x + popupArea.width) - TEXT_INSET_X - MeasureText(title.c_str(), titleFs),
-                     titleY,
-                     titleFs, FadeColor(darkText, fadeAlpha));
+        int descFs  = 16;
+        int lineGap = descFs + 6;
 
-        // Word-wrap description, tiap baris rata kanan (right-aligned)
-        int descFs = 16;
-        int fy = titleY + titleFs + 10;
+        // Word-wrap description dulu (rata kanan / right-aligned), supaya tinggi
+        // total blok teks (judul + deskripsi) bisa dihitung sebelum menentukan
+        // posisi Y, agar blok teks bisa benar-benar center secara vertikal.
         std::vector<std::string> descLines;
         {
             std::string word, line, desc = description;
@@ -601,8 +597,22 @@ struct EvidencePopup {
             }
             if (!line.empty()) descLines.push_back(line);
         }
-        int lineGap = descFs + 6;
-        for (int i = 0; i < (int)descLines.size() && i < MAX_DESC_LINES; i++) {
+        int descLineCount = std::min((int)descLines.size(), MAX_DESC_LINES);
+
+        // Tinggi total blok = judul + gap + N baris deskripsi
+        int titleToDescGap = 10;
+        int blockH = titleFs + titleToDescGap + (descLineCount > 0 ? descLineCount * lineGap : 0);
+
+        // Center-kan blok teks terhadap tinggi popupArea
+        int titleY = (int)(popupArea.y + (popupArea.height - blockH) / 2.0f);
+
+        DrawGameText(title,
+                     (int)(popupArea.x + popupArea.width) - TEXT_INSET_X - MeasureText(title.c_str(), titleFs),
+                     titleY,
+                     titleFs, FadeColor(darkText, fadeAlpha));
+
+        int fy = titleY + titleFs + titleToDescGap;
+        for (int i = 0; i < descLineCount; i++) {
             DrawText(descLines[i].c_str(),
                      (int)(popupArea.x + popupArea.width) - TEXT_INSET_X - MeasureText(descLines[i].c_str(), descFs),
                      fy, descFs, FadeColor(darkText, fadeAlpha));
@@ -1325,6 +1335,8 @@ public:
         } else if (scene == SCENE_CHAPTER2_BOARD) {
             currentSuspectIdx = 0;
             inChapter2Zoom = false;
+        } else if (scene == SCENE_CHAPTER3_INTRO) {
+            typewriter.setText(""); // reset agar teks prolog chapter 3 pasti ter-trigger
         } else if (scene == SCENE_CHAPTER3_PUZZLE) {
             puzzleSolved = false;
             selectedPuzzleSlot = -1;
@@ -1760,13 +1772,15 @@ public:
         auto& notes = suspectNotes[currentSuspectIdx];
 
         // Koordinat HARUS identik dengan drawChapter2Board agar klik akurat
-        // Koordinat checklist overlay (skalakan seperti di draw)
+        // Koordinat checklist overlay (skalakan seperti di draw) — dikalibrasi dari pixel screenshot.
+        // Jarak antar kotak TIDAK uniform (lihat penjelasan di drawChapter2Board), jadi pakai
+        // array offset Y eksplisit yang sama persis.
         float scaleX = (float)screenW / 1456.0f;
         float scaleY = (float)screenH / 816.0f;
-        float cbAreaX = 480.0f * scaleX;
-        float cbAreaY = 175.0f * scaleY;
-        float cbItemH = 65.0f * scaleY;
-        float cbW     = 18.0f * scaleX;
+        static const float cbTopY[5] = {177.0f, 207.0f, 238.0f, 270.0f, 303.0f};
+        float cbAreaX = 574.0f * scaleX;
+        float cbW     = 28.0f * scaleX;
+        float cbItemH = 30.0f * scaleY;
 
         // Koordinat HARUS sama persis dengan drawChapter2Board (margin 20px dari tepi)
         const int   BTN_MARGIN2  = 20;
@@ -1803,8 +1817,8 @@ public:
             } else {
                 // 2. Investigation notes checkbox — koordinat sama persis dgn draw overlay
                 for (int i = 0; i < (int)notes.size(); i++) {
-                    float ny = cbAreaY + i * cbItemH;
-                    Rectangle clickArea = {cbAreaX - 5, ny, cbW + 250.0f * scaleX, cbItemH};
+                    float ny = (i < 5 ? cbTopY[i] : cbTopY[4] + (i - 4) * 30.0f) * scaleY;
+                    Rectangle clickArea = {cbAreaX - 5, ny - 5, cbW + 250.0f * scaleX, cbItemH};
                     if (CheckCollisionPointRec(mp, clickArea)) {
                         notes[i].isChecked = !notes[i].isChecked;
                         break; // hanya proses satu, hindari klik ganda
@@ -2652,38 +2666,41 @@ public:
         auto& notes = suspectNotes[currentSuspectIdx];
 
         // Koordinat checklist overlay — di atas area kotak di gambar (sesuai ethanBoard.png)
-        // "INVESTIGATION NOTES" di gambar sekitar x=480..780, y=130..520 (dari referensi 1456x816)
-        // Kita skalakan ke screenW x screenH
+        // Dikalibrasi ulang berdasarkan pengukuran pixel langsung dari screenshot render (1280x720).
+        // PENTING: jarak antar kotak TIDAK uniform di asset PNG — kotak ke-5 lebih rapat ke
+        // kotak ke-4 (karena label "Detective Note:" / "Relation with victim" wrap 2 baris),
+        // jadi posisi tiap kotak dipakai sebagai offset Y eksplisit, bukan dikali rata.
         float scaleX = (float)screenW / 1456.0f;
         float scaleY = (float)screenH / 816.0f;
 
-        // Area kotak checklist di gambar asli (berdasarkan posisi di ethanBoard.png):
-        // kotak mulai sekitar x=480, y=175, lebar=280, item-item berjarak ~65px
-        float cbAreaX = 480.0f * scaleX;
-        float cbAreaY = 175.0f * scaleY;
-        float cbItemH = 65.0f * scaleY;
-        float cbW     = 18.0f * scaleX;
-        float cbH     = 18.0f * scaleY;
+        // Top-Y tiap kotak (koordinat referensi 1456x816), hasil ukur pixel langsung dari board:
+        static const float cbTopY[5] = {177.0f, 207.0f, 238.0f, 270.0f, 303.0f};
+        float cbAreaX = 574.0f * scaleX;
+        float cbW     = 28.0f * scaleX;
+        float cbH     = 21.0f * scaleY;
+        // cbItemH dipakai hanya untuk tinggi area klik antar baris (boleh berbeda dari gap kotak)
+        float cbItemH = 30.0f * scaleY;
 
         for (int i = 0; i < (int)notes.size(); i++) {
-            float ny = cbAreaY + i * cbItemH;
+            float ny = (i < 5 ? cbTopY[i] : cbTopY[4] + (i - 4) * 30.0f) * scaleY;
 
-            // Kotak checkbox — transparan, hanya border + X bila checked
-            Rectangle cb = {cbAreaX, ny + cbItemH * 0.18f, cbW, cbH};
+            // Kotak checkbox — transparan, hanya border + X bila checked.
+            // cb merepresentasikan posisi & ukuran kotak PNG yang sebenarnya di board.
+            Rectangle cb = {cbAreaX, ny, cbW, cbH};
 
             // Hover highlight tipis
             Vector2 mp = GetMousePosition();
             // Area klik lebih lebar dari kotak agar mudah diklik
-            Rectangle clickArea = {cbAreaX - 5, ny, cbW + 250.0f * scaleX, cbItemH};
+            Rectangle clickArea = {cbAreaX - 5, ny - 5, cbW + 250.0f * scaleX, cbItemH};
             bool hov = CheckCollisionPointRec(mp, clickArea);
             if (hov) DrawRectangleLinesEx(clickArea, 1, {255, 230, 100, 80});
 
-            // X mark bila sudah dicentang — dikecilkan (0.35x cb), naik lebih, geser kanan
+            // X mark bila sudah dicentang — digambar tepat menumpuk di tengah kotak PNG
             if (notes[i].isChecked) {
-                float xHalfW = cb.width  * 0.35f;
-                float xHalfH = cb.height * 0.35f;
-                float xCX    = cb.x + cb.width  * 1.0f + 8.0f; // geser kanan dari kotak
-                float xCY    = cb.y + cb.height * 0.1f;         // naik lebih
+                float xHalfW = cb.width  * 0.55f;
+                float xHalfH = cb.height * 0.55f;
+                float xCX    = cb.x + cb.width  / 2.0f; // tengah horizontal kotak
+                float xCY    = cb.y + cb.height / 2.0f; // tengah vertikal kotak
                 float x1 = xCX - xHalfW/2, y1 = xCY - xHalfH/2;
                 float x2 = xCX + xHalfW/2, y2 = xCY + xHalfH/2;
                 DrawLineEx({x1, y1}, {x2, y2}, 2.0f, {220, 50, 50, 230});
@@ -2918,11 +2935,23 @@ public:
             Rectangle lastThumb = getSuspectThumbRect(2);
             float flagY = lastThumb.y + lastThumb.height + 12;
             const char* flagTxt = TextFormat("Flags: %d/5", pickedFlags);
-            Color flagColor = pickedFlags >= 3 ? Color{200, 70, 55, 255} : Color{80, 145, 85, 255};
+            const Color flagDark = {51, 51, 51, 255}; // #333333
+            int flagFs = 12;
+            int flagTxtW = MeasureText(flagTxt, flagFs);
             // Tengahkan di bawah area 3 tombol
             Rectangle firstThumb = getSuspectThumbRect(0);
             float flagAreaCenterX = firstThumb.x + (lastThumb.x + lastThumb.width - firstThumb.x) / 2.0f;
-            DrawText(flagTxt, (int)(flagAreaCenterX - MeasureText(flagTxt, 12)/2), (int)flagY, 12, flagColor);
+            int flagTxtX = (int)(flagAreaCenterX - flagTxtW/2.0f);
+
+            // Kotak putih di belakang teks (ukuran pas mengikuti teks, sedikit padding) supaya teks
+            // tidak tenggelam di atas background board
+            const float padX = 6.0f, padY = 4.0f;
+            Rectangle flagBg = {(float)flagTxtX - padX, flagY - padY,
+                                 (float)flagTxtW + padX * 2.0f, (float)flagFs + padY * 2.0f};
+            DrawRectangleRec(flagBg, WHITE);
+            DrawRectangleLinesEx(flagBg, 1.5f, flagDark);
+
+            DrawText(flagTxt, flagTxtX, (int)flagY, flagFs, flagDark);
         }
 
         // ---- Tombol Confirm (Confirm.png, setengah ukuran tombol Start) ----
